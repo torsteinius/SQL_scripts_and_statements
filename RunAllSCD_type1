@@ -1,0 +1,51 @@
+CREATE PROCEDURE [dbo].[RunAllSCD_type1]
+    @from_database varchar(100),
+	@to_database varchar(100)
+
+-- =============================================
+-- Author:		Torstein Lunde
+-- Create date: 11.05.2019
+-- =============================================
+
+AS
+	--Get all databases 
+    DECLARE @table_name VARCHAR(50), @business_key VARCHAR(30)
+	DECLARE @from_table VARCHAR(150), @to_table VARCHAR(150)
+	DECLARE @operation_table VARCHAR(150)
+	DECLARE @cursor_SQL NVARCHAR(550)
+
+	SET @operation_table = @from_database+'.[operation].[SCD_setup]'
+
+	--USING DW_Staging_SSIS
+
+	DECLARE table_cursor CURSOR FOR 
+		SELECT 
+			[table_name]
+			,[business_key]
+		FROM [operation].[SCD_setup]
+		WHERE  [SCD_type] = 1 and Activated = 1
+		ORDER BY id
+
+	OPEN table_cursor 
+
+	FETCH NEXT FROM table_cursor INTO
+		@table_name, @business_key
+
+	WHILE @@FETCH_STATUS = 0
+	BEGIN
+
+	    PRINT @from_table
+	    SET @from_table = @from_database + '.trans.' + @table_name
+		SET @to_table = @to_database + '.dbo.' + @table_name
+
+	    EXEC trans.SCD_type1 @from_table, @to_table, @business_key
+
+		/*RAISERROR(@MessageOutput,0,1) WITH NOWAIT*/
+
+		FETCH NEXT FROM table_cursor INTO
+			@table_name, @business_key
+	END
+	CLOSE table_cursor
+	DEALLOCATE table_cursor
+
+RETURN 0
