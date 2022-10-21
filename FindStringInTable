@@ -1,54 +1,95 @@
-USE master 
-GO 
 
-CREATE PROCEDURE dbo.sp_FindStringInTable @stringToFind VARCHAR(100), @schema sysname, @table sysname 
-AS 
+BEGIN
+	SET NOCOUNT ON
 
-SET NOCOUNT ON
+	DECLARE @sqlCommand VARCHAR(8000) 
 
-DECLARE @sqlCommand VARCHAR(8000) 
-DECLARE @where VARCHAR(8000) 
-DECLARE @columnName sysname 
-DECLARE @cursor VARCHAR(8000) 
+	DECLARE @where VARCHAR(8000) 
+	DECLARE @columnName sysname 
+	DECLARE @cursor VARCHAR(8000) 
+	DECLARE @cursor2 VARCHAR(8000) 
+	DECLARE @schema VARCHAR(200) 
+	DECLARE @table VARCHAR(200) 
+	DECLARE @stringToFind VARCHAR(200) 
+	DECLARE @TableName VARCHAR(200) 
+	DECLARE @sqlCommand2 VARCHAR(8000) 
 
-BEGIN TRY 
-   SET @sqlCommand = 'SELECT * FROM [' + @schema + '].[' + @table + '] WHERE' 
-   SET @where = '' 
+	SET @sqlCommand2 = '
+				DECLARE col_cursor2 CURSOR FOR	
+				SELECT   DISTINCT t.name AS TableName
+				FROM        sys.columns c
+				JOIN        sys.tables  t   ON c.object_id = t.object_id
+				WHERE       c.name LIKE ''%kommen%''  
+				ORDER BY    TableName;'
+	PRINT @sqlCommand2
 
-   SET @cursor = 'DECLARE col_cursor CURSOR FOR SELECT COLUMN_NAME 
-   FROM ' + DB_NAME() + '.INFORMATION_SCHEMA.COLUMNS 
-   WHERE TABLE_SCHEMA = ''' + @schema + ''' 
-   AND TABLE_NAME = ''' + @table + ''' 
-   AND DATA_TYPE IN (''char'',''nchar'',''ntext'',''nvarchar'',''text'',''varchar'')' 
+	Exec (@sqlCommand2)
 
-   EXEC (@cursor) 
+	OPEN col_cursor2    
+	FETCH NEXT FROM col_cursor2 INTO @TableName   
 
-   OPEN col_cursor    
-   FETCH NEXT FROM col_cursor INTO @columnName    
+	WHILE @@FETCH_STATUS = 0    
+	BEGIN    
 
-   WHILE @@FETCH_STATUS = 0    
-   BEGIN    
-       IF @where <> '' 
-           SET @where = @where + ' OR' 
+		SET @schema = 'dbo'
+		SET @table = @TableName
+		SET @stringToFind = 'Forb VIP Statsmin'
 
-       SET @where = @where + ' [' + @columnName + '] LIKE ''' + @stringToFind + '''' 
-       FETCH NEXT FROM col_cursor INTO @columnName    
-   END    
+		BEGIN TRY 
+		   SET @sqlCommand = 'SELECT * FROM [' + @schema + '].[' + @table + '] WHERE' 
+		   SET @where = '' 
 
-   CLOSE col_cursor    
-   DEALLOCATE col_cursor  
+		   SET @cursor = 'DECLARE col_cursor CURSOR FOR SELECT COLUMN_NAME 
+		   FROM ' + DB_NAME() + '.INFORMATION_SCHEMA.COLUMNS 
+		   WHERE TABLE_SCHEMA = ''' + @schema + ''' 
+		   AND TABLE_NAME = ''' + @table + ''' 
+		   AND DATA_TYPE IN (''char'',''nchar'',''ntext'',''nvarchar'',''text'',''varchar'')' 
 
-   SET @sqlCommand = @sqlCommand + @where 
-   PRINT @sqlCommand 
-   EXEC (@sqlCommand)  
-END TRY 
-BEGIN CATCH 
-   PRINT 'There was an error. Check to make sure object exists.'
-   PRINT error_message()
+		   EXEC (@cursor) 
+
+		   OPEN col_cursor    
+		   FETCH NEXT FROM col_cursor INTO @columnName    
+
+		   WHILE @@FETCH_STATUS = 0    
+		   BEGIN    
+			   IF @where <> '' 
+				   SET @where = @where + ' OR' 
+
+			   SET @where = @where + ' [' + @columnName + '] LIKE ''' + @stringToFind + '''' 
+			   FETCH NEXT FROM col_cursor INTO @columnName    
+		   END    
+
+		   CLOSE col_cursor    
+		   DEALLOCATE col_cursor  
+
+		   SET @sqlCommand = @sqlCommand + @where 
+		   PRINT @sqlCommand 
+		   EXEC (@sqlCommand)  
+		END TRY 
+		BEGIN CATCH 
+		   PRINT 'There was an error. Check to make sure object exists.'
+		   PRINT error_message()
     
-   IF CURSOR_STATUS('variable', 'col_cursor') <> -3 
-   BEGIN 
-       CLOSE col_cursor    
-       DEALLOCATE col_cursor  
-   END 
-END CATCH 
+		   IF CURSOR_STATUS('variable', 'col_cursor') <> -3 
+		   BEGIN 
+			   CLOSE col_cursor    
+			   DEALLOCATE col_cursor  
+		   END 
+		END CATCH 
+ 
+ 
+		FETCH NEXT FROM col_cursor INTO @TableName    
+	END
+
+	CLOSE col_cursor2    
+	DEALLOCATE col_cursor2
+
+END
+
+
+
+
+
+
+---------------------------------
+
