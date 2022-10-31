@@ -149,119 +149,18 @@ AS
 
 	exec sp_executesql @insert_str
 
-	-- Update status for old rows to not active from status -1
+	-- Update InsertDate to changed rows from last active row
+	set @update_str = 'UPDATE SET a.DW_InsertDate = b.DW_InsertDate FROM ' + @to_table + ' AS a INNER JOIN (SELECT DW_InsertDate, ' + @key + ' FROM ' + @to_table + ' WHERE DW_CurrentFlag = -1) AS b WHERE a.' + @key + ' = ' + ' b.' + @key + ' ' 
+
+	exec sp_executesql @update_str
+    
+    -- Update status for old rows to not active from status -1
 	set @update_str = 'UPDATE ' + @to_table + ' SET DW_CurrentFlag = 0, DW_UpdateDate = Now()  WHERE DW_CurrentFlag = -1'
 
 	exec sp_executesql @update_str
 
 	---------------------------------------------------------------------------------------------------------------------
-    ------------------------ INSERT -----------------------------------------------------------------------
-    --Select from source left join with destination
-    set @select_new_str = 'SELECT ' + @cols_c + ',  getdate() as DW_UpdateDate,  getdate() as [DW_InsertDate], 1 as [DW_CurrentFlag]' +
-                          ' FROM ' + @from_table + ' AS a   WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE a.' + @key + ' = b.' + @key + ')';
 
-	
-	--Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message]
-           ,[RunMachine]
-           ,[LogTime]
-           ,[Error]
-           ,[TaskName]
-           ,[PackageName]
-           ,[VersionBuild])
-     VALUES
-           ('Insert: ' + @insert_str
-           ,'Store procedure'
-           ,getdate()
-           ,0
-           ,'SCD_type2'
-           ,'SCD_type2'
-           ,-1)
- 
- 
-    --Insert new rows
-    exec sp_executesql @insert_str
- 
-	---------------------------------------------------------------------------------------------------------------------
-
-
-
---set @update_str = 'UPDATE a SET ' + @update_cols + ', a.DW_UpdateDate = getdate()' + 
---                        ' FROM ' +  @to_table + ' AS a INNER JOIN (' + @select_changes_str + ') as b ON a.' + @key + ' = b.' + @key; 
- 
-
-    --Update columns
---    select @update_cols =stuff((SELECT  ', a."' + c1.name + '" = b."' + c1.name  + '"' FROM sys.columns c1 where c.object_id=c1.object_id for xml path('')),1,1,'')
---    FROM sys.columns c
---    WHERE c.object_id = OBJECT_ID(@from_table)
- 
-    --Create compare statement
-    SELECT @compare_stmt =stuff((SELECT  ' AND (a."' + c1.name + '" IS NULL OR a."' + c1.name + '" = b."' + c1.name + '") '  FROM sys.columns c1 
-    WHERE c.object_id=c1.object_id for xml path('')),1,1,'')
-    FROM sys.columns c
-    WHERE c.object_id = OBJECT_ID(@from_table)
- 
-    set @compare_stmt = right(@compare_stmt, len(@compare_stmt) - 3); 
- 
-    --Select from source left join with destination
-    set @select_new_str = 'SELECT ' + @cols_c + ',  getdate() as DW_UpdateDate,  getdate() as [DW_InsertDate], 1 as [DW_CurrentFlag]' +
-                          ' FROM ' + @from_table + ' AS a   WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE a.' + @key + ' = b.' + @key + ')';
- 
-    --Create update statement; SCD type 2, only update SCD-fields, and insert new row 
---    set @update_str = 'UPDATE a SET ' + @update_cols + ', a.DW_UpdateDate = getdate()' + 
---                        ' FROM ' +  @to_table + ' AS a INNER JOIN (' + @select_changes_str + ') as b ON a.' + @key + ' = b.' + @key; 
- 
- 
-    --Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message]
-           ,[RunMachine]
-           ,[LogTime]
-           ,[Error]
-           ,[TaskName]
-           ,[PackageName]
-           ,[VersionBuild])
-     VALUES
-           ('Update: ' + @update_str
-           ,'Store procedure'
-           ,getdate()
-           ,0
-           ,'SCD_type2'
-           ,'SCD_type2'
-           ,-1)
- 
- 
-    --Update changes
-    exec sp_executesql @update_str
- 
- 
-    --Create insert statement
-    set @insert_str = 'INSERT INTO ' + @to_table + ' ( ' + @cols_a + ', DW_UpdateDate, DW_InsertDate, DW_CurrentFlag ) ' +
-                        @select_new_str
-     
-    --Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message]
-           ,[RunMachine]
-           ,[LogTime]
-           ,[Error]
-           ,[TaskName]
-           ,[PackageName]
-           ,[VersionBuild])
-     VALUES
-           ('Insert: ' + @insert_str
-           ,'Store procedure'
-           ,getdate()
-           ,0
-           ,'SCD_type2'
-           ,'SCD_type2'
-           ,-1)
- 
- 
-    --Insert new rows
-    exec sp_executesql @insert_str
- 
     --Log the event
     INSERT INTO [operation].[Log]
            ([Message]
