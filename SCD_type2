@@ -125,6 +125,7 @@ AS
     set @select_update_insert_str = 'SELECT ' + @cols_c + ',  getdate() as DW_FromDate, NULL as DW_ToDate,  getdate() as DW_UpdateDate,  getdate() as [DW_InsertDate], 1 as [DW_CurrentFlag] ' +
                           ' FROM ' + @from_table + ' AS a   WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE a.' + @key + ' = b.' + @key + ' and b.DW_CurrentFlag = 1)';
 
+
 	--Log dynamic SQL
     INSERT INTO [operation].[Log]
            ([Message]
