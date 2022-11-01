@@ -1,6 +1,6 @@
 USE [DM_SAP]
 GO
-/****** Object:  StoredProcedure [trans].[SCD_type2]    Script Date: 01.11.2022 01:32:02 ******/
+/****** Object:  StoredProcedure [trans].[SCD_type2]    Script Date: 01.11.2022 13:23:18 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -49,20 +49,34 @@ AS
            ,-1)
  
     ---------------------------------------------------------------------------
-    --Find columns from input table
-    select @cols_a =stuff((SELECT  ', a."' + c1.name + '"' FROM sys.columns c1 where c.object_id=c1.object_id for xml path('')),1,1,'')
-    FROM sys.columns c
-    WHERE c.object_id = OBJECT_ID(@from_table)
+    --Find columns from input table,columns named ID are ignored
+    select @cols_a =stuff((SELECT 
+								CASE 
+									WHEN NOT (upper(c1.name) = 'ID') THEN ', a."' + c1.name + '"' 
+									WHEN upper(c1.name) = 'ID' THEN ''
+									ELSE ''
+								END
+							FROM sys.columns c1 where c.object_id=c1.object_id for xml path('')),1,1,'')
+		FROM sys.columns c
+		WHERE c.object_id = OBJECT_ID(@from_table)
  
-    select @cols_b =stuff((SELECT  ', b."' + c1.name + '"' FROM sys.columns c1 where c.object_id=c1.object_id for xml path('')),1,1,'')
-    FROM sys.columns c
-    WHERE c.object_id = OBJECT_ID(@from_table)
+    SELECT @cols_b =stuff((SELECT 
+								CASE 
+									WHEN NOT (upper(c1.name) = 'ID') THEN ', b."' + c1.name + '"' 
+									WHEN upper(c1.name) = 'ID' THEN ''
+									ELSE ''
+								END
+							FROM sys.columns c1 where c.object_id=c1.object_id for xml path('')),1,1,'')
+		FROM sys.columns c
+		WHERE c.object_id = OBJECT_ID(@from_table)
  
-    select @cols_c = stuff((
+    SELECT @cols_c = stuff((
                 SELECT  
                     CASE 
-                        WHEN upper(right(c1.name,4)) = 'CODE' and t.Name = 'VARCHAR' THEN ', upper(rtrim(ltrim(a."' + c1.name + '"))) "' + c1.name + '" '
-                        WHEN upper(right(c1.name,4)) <> 'CODE' and t.Name = 'VARCHAR' THEN ', rtrim(ltrim(a."' + c1.name + '")) "' + c1.name + '" '
+                        WHEN NOT (upper(c1.name) = 'ID' and t.Name = 'INT') THEN ', rtrim(ltrim(a."' + c1.name + '")) "' + c1.name + '" '
+						WHEN upper(c1.name) = 'ID' and t.Name = 'INT' THEN ''
+                       -- WHEN upper(right(c1.name,4)) = 'CODE' and t.Name = 'VARCHAR' THEN ', upper(rtrim(ltrim(a."' + c1.name + '"))) "' + c1.name + '" '
+                       -- WHEN upper(right(c1.name,4)) <> 'CODE' and t.Name = 'VARCHAR' THEN ', rtrim(ltrim(a."' + c1.name + '")) "' + c1.name + '" '
                         ELSE ', a."' + c1.name + '"'
                     END
                 FROM sys.columns c1 
@@ -72,12 +86,17 @@ AS
 	WHERE c.object_id = OBJECT_ID(@from_table)
  
     --Create compare statement
-    SELECT @compare_stmt =stuff((SELECT  ' AND (a."' + c1.name + '" IS NULL OR a."' + c1.name + '" = b."' + c1.name + '") '  FROM sys.columns c1 
-    WHERE c.object_id=c1.object_id for xml path('')),1,1,'')
-    FROM sys.columns c
-    WHERE c.object_id = OBJECT_ID(@from_table)
+    SELECT @compare_stmt =stuff((SELECT  CASE 
+											WHEN NOT (upper(c1.name) = 'ID') THEN ' AND ((a."' + c1.name + '" IS NULL AND b."' + c1.name + '" IS NULL) OR a."' + c1.name + '" = b."' + c1.name + '") '  
+											WHEN upper(c1.name) = 'ID' THEN ''
+											ELSE ''
+										END 
+										FROM sys.columns c1
+										WHERE c.object_id=c1.object_id for xml path('')),1,1,'')
+		FROM sys.columns c
+		WHERE c.object_id = OBJECT_ID(@from_table)
  
-    set @compare_stmt = right(@compare_stmt, len(@compare_stmt) - 3); 
+    SET @compare_stmt = right(@compare_stmt, len(@compare_stmt) - 3); 
 
     ---------------------------------------------
 	--Log columns
@@ -100,8 +119,8 @@ AS
 	
 	--------------------------------------------------
     --Select from source left join with destination, not equal (change) or not present (new)
-    set @select_changes_str = 'SELECT ' + @cols_c + 
-                        ' FROM ' + @from_table + ' AS a WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE ' + @compare_stmt + ')';
+    set @select_changes_str = 'SELECT ' + @key + 
+                        ' FROM ' + @to_table + ' AS a WHERE a.[DW_CurrentFlag] = 1 AND NOT EXISTS ( SELECT 1 FROM ' + @from_table + ' AS b WHERE ' + @compare_stmt + ')';
 
     
 
@@ -109,7 +128,8 @@ AS
     ------------------------UPDATE and DELETE; Set ToDate and Active = -1 -----------------------------------------------
 	--SCD 2 update statement; change active to -1 first for rows that will be updated
     set @update_str = 'UPDATE a SET DW_CurrentFlag = -1, DW_UpdateDate = getdate(), DW_ToDate = getdate() ' + 
-                        ' FROM ' +  @to_table + ' AS a INNER JOIN (' + @select_changes_str + ') as b ON a.' + @key + ' = b.' + @key; 
+                        ' FROM ' +  @to_table + ' AS a INNER JOIN (' + @select_changes_str + ') as b ON a.' + @key + ' = b.' + @key + 
+						' WHERE a.[DW_CurrentFlag] = 1'; 
 
 	--Log dynamic SQL
     INSERT INTO [operation].[Log]
@@ -129,7 +149,7 @@ AS
 	
 	--Select from source left join with destination
     set @select_update_insert_str = 'SELECT ' + @cols_c + ',  getdate() as DW_FromDate, NULL as DW_ToDate,  getdate() as DW_UpdateDate,  getdate() as [DW_InsertDate], 1 as [DW_CurrentFlag] ' +
-                          ' FROM ' + @from_table + ' AS a   WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE a.' + @key + ' = b.' + @key + ' and b.DW_CurrentFlag = 1)';
+                          ' FROM ' + @from_table + ' AS a WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE ' + @compare_stmt + ' AND b.DW_CurrentFlag = 1)';
 
 	--Log dynamic SQL
     INSERT INTO [operation].[Log]
@@ -141,20 +161,14 @@ AS
 	-- Insert new SCD type 2 row
     set @insert_str = 'INSERT INTO ' + @to_table + ' ( ' + @cols_a + ', DW_FromDate, DW_ToDate, DW_UpdateDate, DW_InsertDate, DW_CurrentFlag ) ' +
                         @select_update_insert_str
-    set @insert_str =  'SET IDENTITY_INSERT ' + @to_table + ' ON ' + 
-	                   @insert_str +
- 					   'SET IDENTITY_INSERT ' + @to_table + ' OFF '
+   -- set @insert_str =  'SET IDENTITY_INSERT ' + @to_table + ' ON ' + 
+   --	                   @insert_str +
+   --					   'SET IDENTITY_INSERT ' + @to_table + ' OFF '
 
     --Log the event
     INSERT INTO [operation].[Log]
-           ([Message]
-           ,[RunMachine]
-           ,[LogTime]
-           ,[Error]
-           ,[TaskName]
-           ,[PackageName]
-           ,[VersionBuild])
-     VALUES
+           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
+    VALUES
            (@insert_str + ''
            ,'Store procedure'
            ,getdate()
