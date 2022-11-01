@@ -1,6 +1,6 @@
 USE [DM_SAP]
 GO
-/****** Object:  StoredProcedure [trans].[SCD_type2]    Script Date: 01.11.2022 13:23:18 ******/
+/****** Object:  StoredProcedure [trans].[SCD_type2]    Script Date: 01.11.2022 13:50:01 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -27,8 +27,8 @@ AS
 	declare @select_update_insert_str nvarchar(max);
 	declare @select_update_str nvarchar(max);
     declare @compare_stmt nvarchar(max);
-    declare @update_str nvarchar(3450);
-    declare @insert_str nvarchar(3450);
+    declare @update_str nvarchar(max);
+    declare @insert_str nvarchar(max);
  
     --Log the event
     INSERT INTO [operation].[Log]
@@ -131,12 +131,13 @@ AS
                         ' FROM ' +  @to_table + ' AS a INNER JOIN (' + @select_changes_str + ') as b ON a.' + @key + ' = b.' + @key + 
 						' WHERE a.[DW_CurrentFlag] = 1'; 
 
-	--Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message], [RunMachine], [LogTime], [Error], [TaskName], [PackageName], [VersionBuild])
-    VALUES
-           ('Update statement: ' + @update_str + ' '
-           ,'Store procedure' ,getdate() ,3 ,'SCD_type2' ,'SCD_type2' ,-1)
+		--Log dynamic SQL
+--		INSERT INTO [operation].[Log]
+--			   ([Message], [RunMachine], [LogTime], [Error], [TaskName], [PackageName], [VersionBuild])
+--		VALUES
+--			   ('Update statement: ' + @update_str + ' '
+--			   ,'Store procedure' ,getdate() ,3 ,'SCD_type2' ,'SCD_type2' ,-1)
+
 
 	exec sp_executesql @update_str
 	
@@ -152,11 +153,11 @@ AS
                           ' FROM ' + @from_table + ' AS a WHERE NOT EXISTS ( SELECT 1 FROM ' + @to_table + ' AS b WHERE ' + @compare_stmt + ' AND b.DW_CurrentFlag = 1)';
 
 	--Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
-    VALUES
-           ('Select update: ' + @select_update_insert_str + ' ' , 
-		    'Store procedure' , getdate() , 5 , 'SCD_type2' , 'SCD_type2' , -1)
+--    INSERT INTO [operation].[Log]
+--           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
+--    VALUES
+--           ('Select update: ' + @select_update_insert_str + ' ' , 
+--		    'Store procedure' , getdate() , 5 , 'SCD_type2' , 'SCD_type2' , -1)
     
 	-- Insert new SCD type 2 row
     set @insert_str = 'INSERT INTO ' + @to_table + ' ( ' + @cols_a + ', DW_FromDate, DW_ToDate, DW_UpdateDate, DW_InsertDate, DW_CurrentFlag ) ' +
@@ -165,17 +166,17 @@ AS
    --	                   @insert_str +
    --					   'SET IDENTITY_INSERT ' + @to_table + ' OFF '
 
-    --Log the event
-    INSERT INTO [operation].[Log]
-           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
-    VALUES
-           (@insert_str + ''
-           ,'Store procedure'
-           ,getdate()
-           ,99
-           ,'SCD_type2'
-           ,'SCD_type2'
-           ,-1)
+--    --Log the event
+--    INSERT INTO [operation].[Log]
+--           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
+--    VALUES
+--           (@insert_str + ''
+--           ,'Store procedure'
+--           ,getdate()
+--           ,99
+--           ,'SCD_type2'
+--           ,'SCD_type2'
+--           ,-1)
 
     exec sp_executesql @insert_str
 
@@ -184,11 +185,11 @@ AS
 	-- Update InsertDate to changed rows from last active row
 	set @update_str = ' UPDATE a SET a.DW_InsertDate = b.DW_InsertDate FROM ' + @to_table + ' AS a INNER JOIN (SELECT DW_InsertDate, ' + @key + ' FROM ' + @to_table + ' WHERE DW_CurrentFlag = -1) b ON a.' + @key + ' = ' + ' b.' + @key + ' ' 
 	--Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
-    VALUES
-           ('Update: ' + @update_str + ' ' , 
-		    'Store procedure' , getdate() , 11 , 'SCD_type2' , 'SCD_type2' , -1)
+--    INSERT INTO [operation].[Log]
+--           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
+--    VALUES
+--           ('Update: ' + @update_str + ' ' , 
+--		    'Store procedure' , getdate() , 11 , 'SCD_type2' , 'SCD_type2' , -1)
     
 	exec sp_executesql @update_str
 
@@ -196,11 +197,11 @@ AS
     -- Update status for old rows to not active from status -1
 	set @update_str = ' UPDATE ' + @to_table + ' SET DW_CurrentFlag = 0, DW_UpdateDate = getdate()  WHERE DW_CurrentFlag = -1'
 	--Log dynamic SQL
-    INSERT INTO [operation].[Log]
-           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
-    VALUES
-           ('Update: ' + @update_str + ' ' , 
-		    'Store procedure' , getdate() , 13 , 'SCD_type2' , 'SCD_type2' , -1)
+--    INSERT INTO [operation].[Log]
+--           ([Message] ,[RunMachine] ,[LogTime] ,[Error] ,[TaskName] ,[PackageName] ,[VersionBuild])
+--    VALUES
+--           ('Update: ' + @update_str + ' ' , 
+--		    'Store procedure' , getdate() , 13 , 'SCD_type2' , 'SCD_type2' , -1)
     
 	exec sp_executesql @update_str
 
