@@ -1,3 +1,4 @@
+--Not working properly yet.
 
 BEGIN
 	SET NOCOUNT ON
@@ -12,38 +13,44 @@ BEGIN
 	DECLARE @table VARCHAR(200) 
 	DECLARE @stringToFind VARCHAR(200) 
 	DECLARE @TableName VARCHAR(200) 
+	DECLARE @SchemaName VARCHAR(200)
 	DECLARE @sqlCommand2 VARCHAR(8000) 
 
 	SET @sqlCommand2 = '
 				DECLARE col_cursor2 CURSOR FOR	
-				SELECT   DISTINCT t.name AS TableName
+				SELECT   DISTINCT t.name AS TableName, schema_name(schema_id) as SchemaName
 				FROM        sys.columns c
 				JOIN        sys.tables  t   ON c.object_id = t.object_id
 				WHERE       c.name LIKE ''%kommen%''  
 				ORDER BY    TableName;'
+
 	PRINT @sqlCommand2
 
 	Exec (@sqlCommand2)
 
 	OPEN col_cursor2    
-	FETCH NEXT FROM col_cursor2 INTO @TableName   
+	FETCH NEXT FROM col_cursor2 INTO @TableName, @SchemaName   
 
 	WHILE @@FETCH_STATUS = 0    
 	BEGIN    
 
-		SET @schema = 'dbo'
+		SET @schema = @SchemaName
 		SET @table = @TableName
-		SET @stringToFind = 'Forb VIP Statsmin'
+		SET @stringToFind = 'torstein'
 
 		BEGIN TRY 
 		   SET @sqlCommand = 'SELECT * FROM [' + @schema + '].[' + @table + '] WHERE' 
 		   SET @where = '' 
+
+
 
 		   SET @cursor = 'DECLARE col_cursor CURSOR FOR SELECT COLUMN_NAME 
 		   FROM ' + DB_NAME() + '.INFORMATION_SCHEMA.COLUMNS 
 		   WHERE TABLE_SCHEMA = ''' + @schema + ''' 
 		   AND TABLE_NAME = ''' + @table + ''' 
 		   AND DATA_TYPE IN (''char'',''nchar'',''ntext'',''nvarchar'',''text'',''varchar'')' 
+
+		   print(@cursor)
 
 		   EXEC (@cursor) 
 
@@ -59,8 +66,8 @@ BEGIN
 			   FETCH NEXT FROM col_cursor INTO @columnName    
 		   END    
 
-		   CLOSE col_cursor    
-		   DEALLOCATE col_cursor  
+--		   CLOSE col_cursor    
+--		   DEALLOCATE col_cursor  
 
 		   SET @sqlCommand = @sqlCommand + @where 
 		   PRINT @sqlCommand 
@@ -86,10 +93,4 @@ BEGIN
 
 END
 
-
-
-
-
-
----------------------------------
 
