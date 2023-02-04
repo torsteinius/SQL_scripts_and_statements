@@ -1,0 +1,30 @@
+CREATE PROCEDURE exchange_dimension_keys (@fact_table VARCHAR(100))
+AS
+BEGIN
+    DECLARE @dimension_table VARCHAR(100),
+            @key_field VARCHAR(100),
+            @surrogate_key_field VARCHAR(100);
+
+    DECLARE cursor_dimension_keys CURSOR FOR
+        SELECT dimension_table, key_field, surrogate_key_field
+        FROM operation_table;
+
+    OPEN cursor_dimension_keys;
+
+    FETCH NEXT FROM cursor_dimension_keys INTO @dimension_table, @key_field, @surrogate_key_field;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        EXEC ('UPDATE ' + @fact_table +
+              ' SET ' + @fact_table + '.' + @key_field + ' = ' + 
+              @dimension_table + '.' + @surrogate_key_field + 
+              ' FROM ' + @fact_table + ' INNER JOIN ' + @dimension_table + 
+              ' ON ' + @fact_table + '.' + @key_field + ' = ' + 
+              @dimension_table + '.' + @key_field + ';');
+
+        FETCH NEXT FROM cursor_dimension_keys INTO @dimension_table, @key_field, @surrogate_key_field;
+    END;
+
+    CLOSE cursor_dimension_keys;
+    DEALLOCATE cursor_dimension_keys;
+END;
